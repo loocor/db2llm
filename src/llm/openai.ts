@@ -1,6 +1,8 @@
 import OpenAI from 'openai'
 import { getDatabaseDescription } from '../db/metadata'
 import { getConfig } from '../utils/config'
+import { getConversationContext, updateConversationContext } from './conversation'
+import { LLMResponse } from './types'
 
 let openaiClient: OpenAI | null = null
 
@@ -49,6 +51,11 @@ export async function generateSystemPrompt(): Promise<string> {
 以下是数据库的结构描述：
 
 ${dbDescription}
+
+特别说明：
+1. 对于包含枚举值的字段，请注意其可能的取值：
+   - 性别(sex)字段：使用"女"表示女性，"男"表示男性
+   - 其他枚举字段会在字段描述中说明可能的取值
 
 当用户询问可查询的信息或打招呼时（比如："你好，我可以查什么？"，"有什么数据？"等），请直接返回数据库中的表名，优先使用表的中文注释说明，如果没有注释则翻译表名为中文。
 例如：
@@ -111,6 +118,18 @@ ${dbDescription}
 3. 对于详细信息查询，以易读的格式展示重要字段
 4. 始终使用中文回复，使用自然语言描述结果
 5. 如果查询结果为空，明确说明"未找到相关数据"
+6. 必须严格按照以下 JSON 格式返回响应：
+{
+  "thoughts": "你的思考过程",
+  "requests": [
+    {
+      "method": "GET",
+      "url": "/api/user?sex=female"
+    }
+  ],
+  "process_results": true,
+  "result_summary": "根据查询结果生成的摘要说明"
+}
 
 API 的基本格式如下：
 1. 获取所有记录：GET /api/{表名}
@@ -124,16 +143,21 @@ API 的基本格式如下：
 /**
  * 处理用户查询
  * @param userQuery 用户查询文本
+ * @param sessionId 会话 ID
  * @returns LLM 的响应
  */
-export async function processUserQuery(userQuery: string): Promise<any> {
+export async function processUserQuery(userQuery: string, sessionId: string): Promise<LLMResponse> {
   const client = getOpenAIClient()
   const systemPrompt = await generateSystemPrompt()
   const config = getConfig()
   const openaiConfig = config.llm.openai
 
+  // 获取会话上下文
+  const context = getConversationContext(sessionId)
+
   console.log('=== LLM 调用开始 ===')
   console.log('用户查询:', userQuery)
+  console.log('会话上下文:', context)
   console.log('系统提示:', systemPrompt)
   console.log('LLM 配置:', {
     model: openaiConfig.model,
@@ -144,12 +168,27 @@ export async function processUserQuery(userQuery: string): Promise<any> {
 
   try {
     console.log('正在调用 LLM API...')
+
+    // 构建消息列表
+    const messages = [{ role: 'system', content: systemPrompt }] as any[]
+
+    // 如果有上下文，添加到消息中
+    if (context) {
+      messages.push(
+        { role: 'user', content: context.lastQuery },
+        {
+          role: 'assistant',
+          content: `我执行了查询，结果如下：\n${JSON.stringify(context.lastResults, null, 2)}`,
+        },
+      )
+    }
+
+    // 添加当前查询
+    messages.push({ role: 'user', content: userQuery })
+
     const response = await client.chat.completions.create({
       model: openaiConfig.model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userQuery },
-      ],
+      messages,
       temperature: openaiConfig.temperature,
     })
 
@@ -184,9 +223,17 @@ export async function processUserQuery(userQuery: string): Promise<any> {
         }
       }
 
-      const parsedResponse = JSON.parse(jsonStr)
+      const parsedResponse = JSON.parse(jsonStr) as LLMResponse
       console.log('解析后的响应:', parsedResponse)
       console.log('=== LLM 调用结束 ===')
+
+      // 更新会话上下文
+      updateConversationContext(sessionId, {
+        lastQuery: userQuery,
+        lastIntent: parsedResponse.thoughts,
+        lastRequest: parsedResponse.requests?.[0],
+      })
+
       return parsedResponse
     } catch (error) {
       console.error('JSON 解析错误:', error)
@@ -195,7 +242,7 @@ export async function processUserQuery(userQuery: string): Promise<any> {
       return {
         error: '无法解析响应',
         rawContent: content,
-      }
+      } as any
     }
   } catch (error) {
     console.error('LLM API 调用错误:', error)

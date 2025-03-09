@@ -1,9 +1,28 @@
-import type { Hono } from 'hono'
+import { Hono } from 'hono'
+import { LLMRequest } from '../llm/types'
 
-interface ApiRequest {
+export interface ApiRequest {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE'
   url: string
   body?: any
+}
+
+/**
+ * 将 LLM 请求转换为 API 请求
+ * @param request LLM 请求
+ * @returns API 请求
+ */
+function convertToApiRequest(request: LLMRequest): ApiRequest {
+  const method = request.method.toUpperCase() as ApiRequest['method']
+  if (!['GET', 'POST', 'PUT', 'DELETE'].includes(method)) {
+    throw new Error(`不支持的请求方法: ${request.method}`)
+  }
+
+  return {
+    method,
+    url: request.url,
+    body: request.body,
+  }
 }
 
 /**
@@ -61,17 +80,18 @@ export async function executeApiRequest(app: Hono, request: ApiRequest): Promise
  * @param requests API 请求对象数组
  * @returns 所有 API 响应结果
  */
-export async function executeApiRequests(app: Hono, requests: ApiRequest[]): Promise<any[]> {
+export async function executeApiRequests(app: Hono, requests: LLMRequest[]): Promise<any[]> {
   const results = []
 
   for (const request of requests) {
-    const result = await executeApiRequest(app, request)
-    results.push(result)
+    const apiRequest = convertToApiRequest(request)
+    const response = await app.request(apiRequest.url, {
+      method: apiRequest.method,
+      body: apiRequest.body ? JSON.stringify(apiRequest.body) : undefined,
+    })
 
-    // 如果请求失败，停止执行后续请求
-    if (result.success === false) {
-      break
-    }
+    const result = await response.json()
+    results.push(result)
   }
 
   return results

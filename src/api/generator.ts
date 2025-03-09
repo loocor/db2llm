@@ -82,9 +82,10 @@ export function createDynamicRouteMiddleware() {
     console.log('使用主键:', primaryKey)
 
     try {
-      let result
+      let result: any[]
+
       switch (method) {
-        case 'GET':
+        case 'GET': {
           if (id) {
             console.log('操作: 获取单条记录')
             // 获取单个记录
@@ -103,17 +104,47 @@ export function createDynamicRouteMiddleware() {
 
             console.log('=== 动态路由请求结束 ===\n')
             return c.json({ success: true, data: result[0] })
-          } else {
-            console.log('操作: 获取所有记录')
-            // 获取所有记录
-            const query = `SELECT * FROM "${tableName}"`
-            console.log('SQL:', query)
-
-            result = await dataSource.query(query)
-            console.log('查询结果数量:', result.length)
-            console.log('=== 动态路由请求结束 ===\n')
-            return c.json({ success: true, data: result })
           }
+
+          console.log('操作: 获取记录列表')
+
+          // 获取查询参数
+          const queryParams = c.req.query()
+
+          // 构建 SQL 查询
+          let sql = `SELECT * FROM "${tableName}"`
+          const params: any[] = []
+
+          // 如果有 ID，使用 ID 查询
+          if (id) {
+            sql += ` WHERE "${primaryKey}" = ?`
+            params.push(id)
+          }
+          // 否则，处理查询参数
+          else if (Object.keys(queryParams).length > 0) {
+            const conditions = []
+            for (const [key, value] of Object.entries(queryParams)) {
+              conditions.push(`"${key}" = ?`)
+              params.push(value)
+            }
+            if (conditions.length > 0) {
+              sql += ` WHERE ${conditions.join(' AND ')}`
+            }
+          }
+
+          console.log('SQL:', sql)
+          console.log('参数:', params)
+
+          // 执行查询
+          result = await dataSource.query(sql, params)
+          console.log('查询结果数量:', result.length)
+
+          console.log('=== 动态路由请求结束 ===\n')
+          return c.json({
+            success: true,
+            data: result,
+          })
+        }
 
         case 'POST':
           if (id) {

@@ -10,6 +10,7 @@ import { closeConnection, connectToDatabase } from './db/connection'
 import { processUserQuery } from './llm/openai'
 import { initializeOpenAI } from './llm/openai'
 import { getConfig, loadConfig } from './utils/config'
+import { updateConversationContext } from './llm/conversation'
 
 // 加载配置文件
 loadConfig()
@@ -109,8 +110,15 @@ app.post('/api/query', async c => {
       return c.json({ success: false, error: '未提供查询内容' }, 400)
     }
 
+    // 获取或生成会话 ID
+    let sessionId = c.req.header('X-Session-ID')
+    if (!sessionId) {
+      sessionId = Math.random().toString(36).substring(2, 15)
+      c.header('X-Session-ID', sessionId)
+    }
+
     // 处理用户查询，获取 LLM 响应
-    const llmResponse = await processUserQuery(query)
+    const llmResponse = await processUserQuery(query, sessionId)
 
     // 如果是表信息查询（没有具体的 API 请求）
     if (llmResponse.tables) {
@@ -139,6 +147,7 @@ app.post('/api/query', async c => {
               3. 对于详细信息查询，以易读的格式展示重要字段
               4. 使用自然语言描述结果
               5. 如果查询结果为空，明确说明"未找到相关数据"`,
+              sessionId,
             )
 
             subtaskResults.push({
@@ -154,6 +163,11 @@ app.post('/api/query', async c => {
           }
         }
       }
+
+      // 更新会话上下文中的结果
+      updateConversationContext(sessionId, {
+        lastResults: subtaskResults,
+      })
 
       // 如果有最终总结
       if (llmResponse.summary) {
@@ -191,6 +205,11 @@ app.post('/api/query', async c => {
     // 执行单个任务的 API 请求
     const results = await executeApiRequests(app, llmResponse.requests)
 
+    // 更新会话上下文中的结果
+    updateConversationContext(sessionId, {
+      lastResults: results,
+    })
+
     // 如果需要处理结果，再次调用 LLM 生成摘要
     if (llmResponse.process_results) {
       const processResponse = await processUserQuery(
@@ -199,7 +218,13 @@ app.post('/api/query', async c => {
         2. 对于列表类查询，总结关键信息而不是显示全部原始数据
         3. 对于详细信息查询，以易读的格式展示重要字段
         4. 使用自然语言描述结果
-        5. 如果查询结果为空，明确说明"未找到相关数据"`,
+        5. 如果查询结果为空，明确说明"未找到相关数据"
+        6. 必须返回以下格式的 JSON：
+        {
+          "thoughts": "结果分析",
+          "result_summary": "根据规则生成的摘要"
+        }`,
+        sessionId,
       )
 
       return c.json({
@@ -208,7 +233,6 @@ app.post('/api/query', async c => {
           thoughts: llmResponse.thoughts,
           result_summary: processResponse.result_summary || processResponse.thoughts,
         },
-        results,
       })
     }
 

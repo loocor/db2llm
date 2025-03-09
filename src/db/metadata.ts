@@ -5,6 +5,7 @@ export interface TableMetadata {
   columns: ColumnMetadata[]
   foreignKeys: ForeignKeyMetadata[]
   indices: IndexMetadata[]
+  comment?: string
 }
 
 export interface ColumnMetadata {
@@ -13,6 +14,8 @@ export interface ColumnMetadata {
   isPrimary: boolean
   isNullable: boolean
   default?: string
+  comment?: string
+  enumValues?: { [key: string]: string[] }
 }
 
 export interface ForeignKeyMetadata {
@@ -88,12 +91,26 @@ export async function getAllTablesMetadata(): Promise<TableMetadata[]> {
         isUnique: idx.unique === 1,
       }))
 
-      tablesMetadata.push({
+      const tableInfo: TableMetadata = {
         name: tableName,
         columns: columnsMetadata,
         foreignKeys: fks,
         indices: indexMetadata,
-      })
+      }
+
+      // 为特定字段添加枚举值信息
+      if (tableName === 'user' && columnsMetadata.some(col => col.name === 'sex')) {
+        for (const col of tableInfo.columns) {
+          if (col.name === 'sex') {
+            col.enumValues = {
+              female: ['女', 'female', 'f', '2', '0'],
+              male: ['男', 'male', 'm', '1', '1'],
+            }
+          }
+        }
+      }
+
+      tablesMetadata.push(tableInfo)
     }
 
     return tablesMetadata
@@ -113,40 +130,27 @@ export async function getDatabaseDescription(): Promise<string> {
 
   for (const table of tables) {
     description += `表名: ${table.name}\n`
+    if (table.comment) {
+      description += `说明: ${table.comment}\n`
+    }
+
     description += '列:\n'
-
     for (const column of table.columns) {
-      description += `  - ${column.name} (${column.type})`
-      if (column.isPrimary) {
-        description += ' [主键]'
-      }
-      if (!column.isNullable) {
-        description += ' [非空]'
-      }
-      if (column.default) {
-        description += ` [默认值: ${column.default}]`
-      }
-      description += '\n'
-    }
+      let columnDesc = `  - ${column.name} (${column.type})`
+      if (column.isPrimary) { columnDesc += ' [主键]' }
+      if (!column.isNullable) { columnDesc += ' [非空]' }
+      if (column.comment) { columnDesc += ` [${column.comment}]` }
 
-    if (table.foreignKeys.length > 0) {
-      description += '外键:\n'
-      for (const fk of table.foreignKeys) {
-        description += `  - ${fk.columnName} -> ${fk.referencedTableName}.${fk.referencedColumnName}\n`
+      // 添加枚举值信息
+      if (column.enumValues) {
+        const enumDesc = Object.entries(column.enumValues)
+          .map(([key, values]) => `${key}: ${values.join('/')}`)
+          .join(', ')
+        columnDesc += ` [可选值: ${enumDesc}]`
       }
-    }
 
-    if (table.indices.length > 0) {
-      description += '索引:\n'
-      for (const idx of table.indices) {
-        description += `  - ${idx.name} (${idx.columnNames.join(', ')})`
-        if (idx.isUnique) {
-          description += ' [唯一]'
-        }
-        description += '\n'
-      }
+      description += `${columnDesc}\n`
     }
-
     description += '\n'
   }
 
