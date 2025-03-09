@@ -1,0 +1,24 @@
+{
+  "name": "db2llm",
+  "version": "0.1.0",
+  "description": "将 SQLite 数据库的 meta 信息与 RESTful API 和 LLM 结合的最小化原型",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist"
+  },
+  "dependencies": {
+    "hono": "^3.12.0",
+    "typeorm": "^0.3.17",
+    "sqlite3": "^5.1.6",
+    "reflect-metadata": "^0.1.13",
+    "openai": "^4.20.0",
+    "yaml": "^2.3.4"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.0.0"
+  }
+}

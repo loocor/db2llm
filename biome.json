@@ -1,0 +1,78 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "vcs": {
+    "clientKind": "git",
+    "enabled": true,
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignore": [
+      "node_modules/**",
+      "components/ui/**",
+      "dist/**",
+      "build/**",
+      ".next/**",
+      "coverage/**",
+      "*.log"
+    ],
+    "ignoreUnknown": false
+  },
+  "formatter": {
+    "attributePosition": "multiline",
+    "bracketSpacing": true,
+    "enabled": true,
+    "formatWithErrors": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100
+  },
+  "javascript": {
+    "formatter": {
+      "attributePosition": "multiline",
+      "arrowParentheses": "asNeeded",
+      "bracketSameLine": false,
+      "bracketSpacing": true,
+      "enabled": true,
+      "jsxQuoteStyle": "single",
+      "quoteProperties": "asNeeded",
+      "quoteStyle": "single",
+      "semicolons": "asNeeded",
+      "trailingCommas": "all"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "info",
+        "noUndeclaredVariables": "error"
+      },
+      "nursery": {
+        "noCommonJs": "error"
+      },
+      "style": {
+        "noDefaultExport": "off",
+        "noParameterAssign": "error",
+        "noShoutyConstants": "error",
+        "useNodejsImportProtocol": "off",
+        "noUnusedTemplateLiteral": "error",
+        "noVar": "error",
+        "useBlockStatements": "info",
+        "useCollapsedElseIf": "error",
+        "useShorthandArrayType": "error",
+        "useTemplate": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "info",
+        "noArrayIndexKey": "off"
+      },
+      "a11y": {
+        "useValidAnchor": "off",
+        "noRedundantAlt": "off",
+        "noSvgWithoutTitle": "off"
+      }
+    }
+  }
+}

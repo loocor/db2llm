@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DB2LLM - 数据库对话助手</title>
+    <style>
+      body {
+        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f5f5f5;
+        color: #333;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 40px);
+      }
+
+      header {
+        background-color: #1e88e5;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px 8px 0 0;
+        margin-bottom: 0;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .config-panel {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      input[type="text"],
+      input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+
+      button {
+        background-color: #1e88e5;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+      }
+
+      button:hover {
+        background-color: #1976d2;
+      }
+
+      .chat-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        height: calc(100vh - 80px);
+      }
+
+      .chat-messages {
+        flex: 1;
+        padding: 20px;
+        overflow-y: auto;
+      }
+
+      .message {
+        margin-bottom: 15px;
+        padding: 10px 15px;
+        border-radius: 18px;
+        max-width: 80%;
+        word-wrap: break-word;
+      }
+
+      .user-message {
+        background-color: #e3f2fd;
+        margin-left: auto;
+        border-bottom-right-radius: 4px;
+      }
+
+      .bot-message {
+        background-color: #f1f1f1;
+        margin-right: auto;
+        border-bottom-left-radius: 4px;
+      }
+
+      .chat-input {
+        display: flex;
+        padding: 10px;
+        border-top: 1px solid #eee;
+      }
+
+      .chat-input input {
+        flex: 1;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-right: 10px;
+      }
+
+      .status {
+        padding: 10px;
+        margin: 10px 0;
+        border-radius: 4px;
+      }
+
+      .status.success {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+      }
+
+      .status.error {
+        background-color: #ffebee;
+        color: #c62828;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      pre {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-radius: 4px;
+        overflow-x: auto;
+        white-space: pre-wrap;
+      }
+
+      code {
+        font-family: 'Courier New', Courier, monospace;
+      }
+
+      /* 设置按钮样式 */
+      .settings-btn {
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        float: right;
+      }
+
+      .settings-btn:hover {
+        background-color: rgba(30, 136, 229, 0.1);
+      }
+
+      /* 模态框样式 */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+
+      .modal-overlay.show {
+        display: flex;
+      }
+
+      .modal {
+        background-color: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        width: 90%;
+        max-width: 500px;
+        position: relative;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .modal-title {
+        font-size: 18px;
+        font-weight: bold;
+        margin: 0;
+      }
+
+      .modal-close {
+        background: none;
+        border: none;
+        font-size: 24px;
+        cursor: pointer;
+        color: #666;
+        padding: 5px;
+      }
+
+      .modal-close:hover {
+        color: #333;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <header>
+        <h1 id="app-title" style="display: inline-block;">DB2LLM - 数据库对话助手</h1>
+        <button class="settings-btn" id="settings-btn" title="设置">⚙️</button>
+      </header>
+
+      <!-- 设置模态框 -->
+      <div class="modal-overlay" id="settings-modal">
+        <div class="modal">
+          <div class="modal-header">
+            <h2 class="modal-title">配置设置</h2>
+            <button class="modal-close" id="modal-close">&times;</button>
+          </div>
+          <div class="config-panel">
+            <div class="form-group">
+              <label for="db-file">SQLite 数据库文件</label>
+              <input type="file" id="db-file" accept=".db,.sqlite,.sqlite3">
+              <small class="form-text" id="db-file-help" style="color: #666; margin-top: 5px; display: block;"></small>
+            </div>
+
+            <div class="form-group">
+              <label for="api-url">LLM API 地址 (可选)</label>
+              <input type="text" id="api-url" placeholder="例如: https://api.openai.com/v1">
+            </div>
+
+            <div class="form-group" id="api-key-group">
+              <label for="api-key">LLM API 密钥</label>
+              <input type="text" id="api-key" placeholder="输入你的 API 密钥">
+            </div>
+
+            <button id="connect-btn">连接</button>
+            <div id="status-message" class="status hidden"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+          <div class="message bot-message" id="welcome-message">
+            欢迎使用 DB2LLM 数据库对话助手！请先连接数据库和配置 LLM API。
+          </div>
+        </div>
+
+        <div class="chat-input">
+          <input type="text" id="user-input" placeholder="输入你的问题..." disabled>
+          <button id="send-btn" disabled>发送</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', async () => {
+        // 获取配置
+        const config = await fetch('/api/config').then(res => res.json());
+
+        // 更新页面标题和欢迎消息
+        document.title = config.ui.title;
+        document.getElementById('app-title').textContent = config.ui.title;
+        document.getElementById('welcome-message').textContent = config.ui.welcomeMessage;
+
+        // 设置默认 API URL 和 API Key
+        const apiUrlInput = document.getElementById('api-url');
+        const apiKeyInput = document.getElementById('api-key');
+        const apiKeyGroup = document.getElementById('api-key-group');
+
+        if (config.llm.openai.defaultApiUrl) {
+          apiUrlInput.value = config.llm.openai.defaultApiUrl;
+          apiUrlInput.placeholder = `例如: ${config.llm.openai.defaultApiUrl}`;
+        }
+
+        // 如果配置文件中已有 API 密钥，设置并禁用输入框
+        if (config.llm?.openai?.apiKey) {
+          apiKeyInput.value = config.llm.openai.apiKey;
+          apiKeyInput.disabled = true;
+          apiKeyGroup.style.opacity = '0.7';
+          // 添加提示信息
+          const apiKeyHelp = document.createElement('small');
+          apiKeyHelp.className = 'form-text';
+          apiKeyHelp.style.color = '#666';
+          apiKeyHelp.style.marginTop = '5px';
+          apiKeyHelp.style.display = 'block';
+          apiKeyHelp.textContent = '已从配置文件加载 API 密钥';
+          apiKeyGroup.appendChild(apiKeyHelp);
+        }
+
+        // 显示默认数据库名称提示
+        if (config.database?.defaultName) {
+          document.getElementById('db-file-help').textContent =
+            `默认数据库名称: ${config.database.defaultName}`;
+        }
+
+        const connectBtn = document.getElementById('connect-btn');
+        const dbFileInput = document.getElementById('db-file');
+        const statusMessage = document.getElementById('status-message');
+        const chatMessages = document.getElementById('chat-messages');
+        const userInput = document.getElementById('user-input');
+        const sendBtn = document.getElementById('send-btn');
+        const settingsBtn = document.getElementById('settings-btn');
+        const settingsModal = document.getElementById('settings-modal');
+        const modalClose = document.getElementById('modal-close');
+        let isConfigured = false;
+
+        // 显示/隐藏设置模态框
+        function toggleSettingsModal(show) {
+          settingsModal.classList.toggle('show', show);
+        }
+
+        // 检查配置状态
+        function checkConfiguration() {
+          const hasApiKey = config.llm?.openai?.apiKey || apiKeyInput.value.trim();
+          const hasDbFile = dbFileInput.files && dbFileInput.files.length > 0;
+          isConfigured = hasApiKey && hasDbFile;
+
+          if (!isConfigured) {
+            toggleSettingsModal(true);
+          }
+        }
+
+        // 事件监听器
+        settingsBtn.addEventListener('click', () => toggleSettingsModal(true));
+        modalClose.addEventListener('click', () => toggleSettingsModal(false));
+        settingsModal.addEventListener('click', (e) => {
+          if (e.target === settingsModal) {
+            toggleSettingsModal(false);
+          }
+        });
+
+        // 修改连接成功的处理
+        async function handleConnectionSuccess() {
+          showStatus('连接成功！', 'success');
+          toggleSettingsModal(false);
+          userInput.disabled = false;
+          sendBtn.disabled = false;
+          addMessage(config.ui.readyMessage, 'bot');
+        }
+
+        // 修改连接按钮事件
+        connectBtn.addEventListener('click', async () => {
+          if (!dbFileInput.files || dbFileInput.files.length === 0) {
+            showStatus('请选择 SQLite 数据库文件', 'error');
+            return;
+          }
+
+          if (!config.llm?.openai?.apiKey && !apiKeyInput.value.trim()) {
+            showStatus('请输入 LLM API 密钥', 'error');
+            return;
+          }
+
+          const formData = new FormData();
+          formData.append('dbFile', dbFileInput.files[0]);
+
+          if (!config.llm?.openai?.apiKey) {
+            formData.append('apiKey', apiKeyInput.value);
+          }
+
+          if (apiUrlInput.value.trim()) {
+            formData.append('apiUrl', apiUrlInput.value);
+          }
+
+          try {
+            showStatus('正在连接...', 'success');
+
+            const response = await fetch('/api/connect', {
+              method: 'POST',
+              body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              handleConnectionSuccess();
+            } else {
+              showStatus(`连接失败: ${data.error}`, 'error');
+            }
+          } catch (error) {
+            showStatus(`连接出错: ${error.message}`, 'error');
+          }
+        });
+
+        // 发送按钮点击事件
+        sendBtn.addEventListener('click', sendMessage);
+
+        // 输入框回车事件
+        userInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            sendMessage();
+          }
+        });
+
+        // 发送消息
+        async function sendMessage() {
+          const message = userInput.value.trim();
+
+          if (!message) return;
+
+          // 添加用户消息
+          addMessage(message, 'user');
+
+          // 清空输入框
+          userInput.value = '';
+
+          // 禁用输入，显示加载状态
+          userInput.disabled = true;
+          sendBtn.disabled = true;
+
+          try {
+            const response = await fetch('/api/query', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ query: message })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+              // 处理 API 请求结果
+              let botResponse = '';
+
+              if (data.thoughts) {
+                // 添加思考过程
+                botResponse = data.thoughts + '\n\n';
+              }
+
+              if (data.tables) {
+                // 如果是表名列表，直接显示
+                botResponse += data.tables.join('\n');
+              } else if (data.results && data.results.length > 0) {
+                // 格式化 API 请求结果
+                botResponse += formatResults(data.results);
+              } else {
+                botResponse = '我无法处理这个请求，请尝试其他问题。';
+              }
+
+              addMessage(botResponse, 'bot');
+            } else {
+              addMessage(`处理请求时出错: ${data.error}`, 'bot');
+            }
+          } catch (error) {
+            addMessage(`发送请求时出错: ${error.message}`, 'bot');
+          } finally {
+            // 重新启用输入
+            userInput.disabled = false;
+            sendBtn.disabled = false;
+            userInput.focus();
+          }
+        }
+
+        // 添加消息到聊天窗口
+        function addMessage(text, sender) {
+          const messageDiv = document.createElement('div');
+          messageDiv.className = `message ${sender}-message`;
+
+          // 检查是否包含代码或 JSON
+          if (text.includes('```') || (sender === 'bot' && isJsonString(text))) {
+            // 格式化代码或 JSON
+            messageDiv.innerHTML = formatCodeBlocks(text);
+          } else {
+            messageDiv.textContent = text;
+          }
+
+          chatMessages.appendChild(messageDiv);
+
+          // 滚动到底部
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // 显示状态消息
+        function showStatus(message, type) {
+          statusMessage.textContent = message;
+          statusMessage.className = `status ${type}`;
+          statusMessage.classList.remove('hidden');
+
+          // 5 秒后隐藏
+          setTimeout(() => {
+            statusMessage.classList.add('hidden');
+          }, 5000);
+        }
+
+        // 格式化代码块
+        function formatCodeBlocks(text) {
+          // 替换 Markdown 代码块
+          let formatted = text.replace(/```(\w*)([\s\S]*?)```/g, (match, language, code) => {
+            return `<pre><code class="language-${language}">${escapeHtml(code.trim())}</code></pre>`;
+          });
+
+          // 如果整个文本是 JSON 但没有代码块标记
+          if (!text.includes('```') && isJsonString(text)) {
+            try {
+              const json = JSON.parse(text);
+              formatted = `<pre><code class="language-json">${escapeHtml(JSON.stringify(json, null, 2))}</code></pre>`;
+            } catch (e) {
+              // 如果解析失败，保持原样
+            }
+          }
+
+          return formatted;
+        }
+
+        // 格式化 API 结果
+        function formatResults(results) {
+          let formatted = '';
+
+          for (let i = 0; i < results.length; i++) {
+            const result = results[i];
+
+            formatted += `请求 ${i + 1} 结果:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\`\n\n`;
+          }
+
+          return formatted;
+        }
+
+        // 检查字符串是否为 JSON
+        function isJsonString(str) {
+          try {
+            JSON.parse(str);
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        // HTML 转义
+        function escapeHtml(unsafe) {
+          return unsafe
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+        }
+
+        // 初始化时检查配置
+        checkConfiguration();
+      });
+    </script>
+  </body>
+
+</html>
