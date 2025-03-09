@@ -1,52 +1,52 @@
-# DB2LLM 最小化原型
+# DB2LLM Minimal Prototype
 
-## 概述
-DB2LLM 是一个将 SQLite 数据库的元数据与 RESTful API 和大型语言模型（LLM）结合的最小化原型。它允许用户通过自然语言与数据库进行交互，无需编写 SQL 查询或了解数据库结构。当前为便于演示，使用 SQLite 数据库，实际使用时，请使用自己的数据库并更新相关的配置。
+## Overview
+DB2LLM is a minimal prototype that combines SQLite database metadata with RESTful APIs and large language models (LLMs). It allows users to interact with databases using natural language, without writing SQL queries or understanding database structures. Currently, SQLite is used for demonstration purposes. For actual use, please use your own database and update the relevant configurations.
 
-## 功能特点
-- 提供用户对话窗口，支持配置 LLM 的 API 地址和授权密钥
-- 支持用户指定 SQLite 数据库文件
-- 自动分析数据库结构，提取元数据信息
-  - 表结构和字段信息
-  - 字段枚举值映射（如性别：男/女、male/female 等）
-  - 主键、外键和索引信息
-- 动态生成 RESTful API，用于数据库操作
-- 智能会话管理
-  - 支持上下文记忆，理解后续查询
-  - 会话超时自动清理（30分钟）
-  - 结果摘要生成
-- 将用户自然语言查询转换为 API 请求
-- 执行 API 请求并返回结果
-- 支持多步骤复杂查询
+## Features
+- Provides a user chat window supporting LLM API address and authorization key configuration
+- Supports user-specified SQLite database files
+- Automatically analyzes database structure and extracts metadata:
+  - Table and field information
+  - Field enumeration value mapping (e.g., gender: male/female, male/female, etc.)
+  - Primary keys, foreign keys, and index information
+- Dynamically generates RESTful APIs for database operations
+- Intelligent session management:
+  - Supports context memory for understanding follow-up queries
+  - Automatic session cleanup after timeout (30 minutes)
+  - Result summary generation
+- Converts user natural language queries into API requests
+- Executes API requests and returns results
+- Supports multi-step complex queries
 
-## 技术栈
-- **运行时**: Bun
-- **Web 框架**: Hono
-- **数据库**: SQLite
+## Tech Stack
+- **Runtime**: Bun
+- **Web Framework**: Hono
+- **Database**: SQLite
 - **ORM**: TypeORM
-- **LLM 集成**: OpenAI API 及兼容接口
+- **LLM Integration**: OpenAI API and compatible interfaces
 
-## 快速开始
+## Quick Start
 
-### 前提条件
-- 安装 [Bun](https://bun.sh/) 运行时
-- 准备一个 SQLite 数据库文件
-- 获取 OpenAI API 密钥或其他兼容的 LLM API 密钥
+### Prerequisites
+- Install [Bun](https://bun.sh/) runtime
+- Prepare a SQLite database file
+- Obtain an OpenAI API key or other compatible LLM API key
 
-### 安装
-1. 克隆仓库
+### Installation
+1. Clone the repository
 ```bash
 git clone https://github.com/loocor/db2llm.git
 cd db2llm
 ```
 
-2. 安装依赖
+2. Install dependencies
 ```bash
 bun install
 ```
 
-3. 配置 LLM
-修改 `config/config.yaml` 文件：
+3. Configure LLM
+Modify the `config/config.yaml` file:
 ```yaml
 server:
   port: 3000
@@ -68,65 +68,65 @@ llm:
     apiKey: "sk-4c907ed3eed5468db793b6f431e9a28c"
 
 ui:
-  title: "DB2LLM - 数据库对话助手"
-  welcomeMessage: "欢迎使用 DB2LLM 数据库对话助手！请先连接数据库和配置 LLM API。"
-  readyMessage: "我已准备好，跟我来聊吧！"
+  title: "DB2LLM - Database Chat Assistant"
+  welcomeMessage: "Welcome to DB2LLM Database Chat Assistant! Please connect to the database and configure the LLM API first."
+  readyMessage: "I'm ready, let's chat!"
 ```
 
-支持的 LLM 提供商：
-- DeepSeek API（默认）
+Supported LLM providers:
+- DeepSeek API (default)
 - OpenAI API
 - Azure OpenAI
 - Claude API
-- 其他兼容 OpenAI API 格式的服务
+- Other OpenAI API compatible services
 
-### 运行
+### Run
 ```bash
 bun run dev
 ```
 
-应用将在 http://localhost:3000 启动。
+The application will start at http://localhost:3000.
 
-### 使用方法
-1. 打开浏览器访问 http://localhost:3000
-2. 上传 SQLite 数据库文件
-3. 输入 LLM API 密钥（和可选的 API 地址）
-4. 点击"连接"按钮
-5. 连接成功后，在对话框中输入自然语言查询
-6. 系统将自动处理查询并返回结果
+### Usage
+1. Open your browser and visit http://localhost:3000
+2. Upload a SQLite database file
+3. Enter the LLM API key (and optional API address)
+4. Click the "Connect" button
+5. After successful connection, enter natural language queries in the dialog box
+6. The system will automatically process the query and return results
 
-## 示例查询
-- "显示所有用户信息"
-- "查找所有女性用户"
-- "统计男性用户数量"
-- "添加一个新用户，姓名为李四，性别男，年龄30岁"
-- "更新ID为5的用户的电话号码为13812345678"
-- "删除ID为10的用户"
-- "再找找看"（基于上下文的后续查询）
+## Example Queries
+- "Show all user information"
+- "Find all female users"
+- "Count the number of male users"
+- "Add a new user named Li Si, male, age 30"
+- "Update the phone number of user with ID 5 to 13812345678"
+- "Delete user with ID 10"
+- "Try again" (context-based follow-up query)
 
-## 数据库支持
-### 字段类型
-- 基本类型：INTEGER, TEXT, NUMBER 等
-- 支持自定义枚举值映射，如：
-  - 性别：['女', 'female', 'f', '2', '0'] -> 女性
-  - 状态：['active', '1', '启用'] -> 启用
+## Database Support
+### Field Types
+- Basic types: INTEGER, TEXT, NUMBER, etc.
+- Supports custom enumeration value mapping, such as:
+  - Gender: ['female', 'female', 'f', '2', '0'] -> Female
+  - Status: ['active', '1', 'enabled'] -> Enabled
 
-### 元数据
-- 表结构信息
-- 字段属性（主键、非空等）
-- 字段枚举值映射
-- 外键关系
-- 索引信息
+### Metadata
+- Table structure information
+- Field attributes (primary key, not null, etc.)
+- Field enumeration value mapping
+- Foreign key relationships
+- Index information
 
-## 注意事项
-- 本项目是一个概念验证原型，不建议在生产环境中使用
-- 未实现用户认证和授权机制
-- 未优化大型数据库的性能
-- API 密钥直接在前端输入，存在安全风险
-- 会话数据存储在内存中，服务重启后会丢失
+## Notes
+- This project is a proof-of-concept prototype and is not recommended for production use
+- User authentication and authorization mechanisms are not implemented
+- Performance with large databases is not optimized
+- API keys are entered directly in the frontend, posing security risks
+- Session data is stored in memory and will be lost after server restart
 
-## 许可证
+## License
 MIT
 
-## 贡献
-欢迎提交 Issue 和 Pull Request！
+## Contribution
+Welcome to submit Issues and Pull Requests!
