@@ -43,6 +43,7 @@ export function getOpenAIClient(): OpenAI {
  */
 export async function generateSystemPrompt(): Promise<string> {
   const dbDescription = await getDatabaseDescription()
+  console.log('数据库描述:', dbDescription)
 
   return `你是一个数据库助手，可以帮助用户查询和操作数据库。
 以下是数据库的结构描述：
@@ -60,16 +61,37 @@ ${dbDescription}
   ]
 }
 
-如果是具体的查询请求，你可以通过调用 RESTful API 来查询和操作数据库。API 的基本格式如下：
+如果是需要多个步骤才能完成的查询，请将查询拆分为多个子任务，并在每个子任务中处理和总结结果。使用以下格式：
+{
+  "thoughts": "这个查询需要分两步完成",
+  "subtasks": [
+    {
+      "thoughts": "第一步：获取所有客户记录以统计数量",
+      "requests": [
+        {
+          "method": "GET",
+          "url": "/api/customer"
+        }
+      ],
+      "process_results": true,
+      "result_summary": "根据查询结果生成的摘要说明"
+    },
+    {
+      "thoughts": "第二步：获取特定客户的详细信息",
+      "requests": [
+        {
+          "method": "GET",
+          "url": "/api/customer/1"
+        }
+      ],
+      "process_results": true,
+      "result_summary": "根据查询结果生成的摘要说明"
+    }
+  ],
+  "summary": "所有步骤完成后的最终总结"
+}
 
-1. 获取所有记录：GET /api/{表名}
-2. 获取单个记录：GET /api/{表名}/{id}
-3. 创建记录：POST /api/{表名} (带有 JSON 请求体)
-4. 更新记录：PUT /api/{表名}/{id} (带有 JSON 请求体)
-5. 删除记录：DELETE /api/{表名}/{id}
-6. 获取数据库元数据：GET /api/metadata
-
-对于具体查询，请使用 JSON 格式响应，包含以下字段：
+如果是简单的查询请求，也需要处理和总结结果。使用以下格式：
 {
   "thoughts": "你的思考过程",
   "requests": [
@@ -78,8 +100,25 @@ ${dbDescription}
       "url": "/api/...",
       "body": {} // 可选，用于 POST 和 PUT 请求
     }
-  ]
-}`
+  ],
+  "process_results": true,
+  "result_summary": "根据查询结果生成的摘要说明"
+}
+
+在处理结果时，请遵循以下规则：
+1. 对于统计类查询（如查询数量），直接给出具体数字
+2. 对于列表类查询，总结关键信息而不是显示全部原始数据
+3. 对于详细信息查询，以易读的格式展示重要字段
+4. 始终使用中文回复，使用自然语言描述结果
+5. 如果查询结果为空，明确说明"未找到相关数据"
+
+API 的基本格式如下：
+1. 获取所有记录：GET /api/{表名}
+2. 获取单个记录：GET /api/{表名}/{id}
+3. 创建记录：POST /api/{表名} (带有 JSON 请求体)
+4. 更新记录：PUT /api/{表名}/{id} (带有 JSON 请求体)
+5. 删除记录：DELETE /api/{表名}/{id}
+6. 获取数据库元数据：GET /api/metadata`
 }
 
 /**
@@ -93,7 +132,18 @@ export async function processUserQuery(userQuery: string): Promise<any> {
   const config = getConfig()
   const openaiConfig = config.llm.openai
 
+  console.log('=== LLM 调用开始 ===')
+  console.log('用户查询:', userQuery)
+  console.log('系统提示:', systemPrompt)
+  console.log('LLM 配置:', {
+    model: openaiConfig.model,
+    temperature: openaiConfig.temperature,
+    provider: config.llm.provider,
+    apiUrl: openaiConfig.defaultApiUrl,
+  })
+
   try {
+    console.log('正在调用 LLM API...')
     const response = await client.chat.completions.create({
       model: openaiConfig.model,
       messages: [
@@ -104,19 +154,52 @@ export async function processUserQuery(userQuery: string): Promise<any> {
     })
 
     const content = response.choices[0].message.content
+    console.log('LLM 原始响应:', content)
 
     // 尝试解析 JSON 响应
     try {
-      return JSON.parse(content || '{}')
+      if (!content) {
+        throw new Error('LLM 响应内容为空')
+      }
+
+      // 提取第一个完整的 JSON 对象
+      let jsonStr = content
+      const startIdx = content.indexOf('{')
+      if (startIdx !== -1) {
+        let bracketCount = 0
+        let endIdx = -1
+
+        for (let i = startIdx; i < content.length; i++) {
+          if (content[i] === '{') bracketCount++
+          if (content[i] === '}') bracketCount--
+
+          if (bracketCount === 0) {
+            endIdx = i + 1
+            break
+          }
+        }
+
+        if (endIdx !== -1) {
+          jsonStr = content.substring(startIdx, endIdx)
+        }
+      }
+
+      const parsedResponse = JSON.parse(jsonStr)
+      console.log('解析后的响应:', parsedResponse)
+      console.log('=== LLM 调用结束 ===')
+      return parsedResponse
     } catch (error) {
-      console.error('无法解析 LLM 响应为 JSON:', error)
+      console.error('JSON 解析错误:', error)
+      console.log('无法解析的内容:', content)
+      console.log('=== LLM 调用异常结束 ===')
       return {
         error: '无法解析响应',
         rawContent: content,
       }
     }
   } catch (error) {
-    console.error('调用 LLM API 失败:', error)
+    console.error('LLM API 调用错误:', error)
+    console.log('=== LLM 调用异常结束 ===')
     throw new Error('调用 LLM API 失败')
   }
 }

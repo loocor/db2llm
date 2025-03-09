@@ -112,7 +112,70 @@ app.post('/api/query', async c => {
     // 处理用户查询，获取 LLM 响应
     const llmResponse = await processUserQuery(query)
 
-    // 检查响应是否包含请求
+    // 如果是表信息查询（没有具体的 API 请求）
+    if (llmResponse.tables) {
+      return c.json({
+        success: true,
+        response: llmResponse,
+      })
+    }
+
+    // 检查是否包含子任务
+    if (llmResponse.subtasks && Array.isArray(llmResponse.subtasks)) {
+      const subtaskResults = []
+
+      // 依次执行每个子任务
+      for (const subtask of llmResponse.subtasks) {
+        if (subtask.requests && Array.isArray(subtask.requests)) {
+          // 执行子任务的 API 请求
+          const results = await executeApiRequests(app, subtask.requests)
+
+          // 如果需要处理结果，再次调用 LLM 生成摘要
+          if (subtask.process_results) {
+            const processResponse = await processUserQuery(
+              `请根据以下查询结果生成摘要：\n${JSON.stringify(results, null, 2)}\n\n请遵循以下规则：
+              1. 对于统计类查询，直接给出具体数字
+              2. 对于列表类查询，总结关键信息而不是显示全部原始数据
+              3. 对于详细信息查询，以易读的格式展示重要字段
+              4. 使用自然语言描述结果
+              5. 如果查询结果为空，明确说明"未找到相关数据"`,
+            )
+
+            subtaskResults.push({
+              thought: subtask.thoughts,
+              results,
+              summary: processResponse.result_summary || processResponse.thoughts,
+            })
+          } else {
+            subtaskResults.push({
+              thought: subtask.thoughts,
+              results,
+            })
+          }
+        }
+      }
+
+      // 如果有最终总结
+      if (llmResponse.summary) {
+        return c.json({
+          success: true,
+          response: {
+            thoughts: llmResponse.summary,
+            subtasks: subtaskResults,
+          },
+        })
+      }
+
+      return c.json({
+        success: true,
+        response: {
+          thoughts: llmResponse.thoughts,
+          subtasks: subtaskResults,
+        },
+      })
+    }
+
+    // 检查是否包含单个 API 请求
     if (
       !llmResponse.requests ||
       !Array.isArray(llmResponse.requests) ||
@@ -121,16 +184,37 @@ app.post('/api/query', async c => {
       return c.json({
         success: false,
         error: '无法理解查询或生成 API 请求',
-        rawResponse: llmResponse,
+        response: llmResponse,
       })
     }
 
-    // 执行 API 请求
+    // 执行单个任务的 API 请求
     const results = await executeApiRequests(app, llmResponse.requests)
+
+    // 如果需要处理结果，再次调用 LLM 生成摘要
+    if (llmResponse.process_results) {
+      const processResponse = await processUserQuery(
+        `请根据以下查询结果生成摘要：\n${JSON.stringify(results, null, 2)}\n\n请遵循以下规则：
+        1. 对于统计类查询，直接给出具体数字
+        2. 对于列表类查询，总结关键信息而不是显示全部原始数据
+        3. 对于详细信息查询，以易读的格式展示重要字段
+        4. 使用自然语言描述结果
+        5. 如果查询结果为空，明确说明"未找到相关数据"`,
+      )
+
+      return c.json({
+        success: true,
+        response: {
+          thoughts: llmResponse.thoughts,
+          result_summary: processResponse.result_summary || processResponse.thoughts,
+        },
+        results,
+      })
+    }
 
     return c.json({
       success: true,
-      thoughts: llmResponse.thoughts,
+      response: llmResponse,
       results,
     })
   } catch (error) {

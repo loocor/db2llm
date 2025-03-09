@@ -1,3 +1,4 @@
 node_modules
 .specstory/history
 .env
+.cursor

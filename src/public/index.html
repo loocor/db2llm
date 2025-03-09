@@ -448,23 +448,36 @@
             if (data.success) {
               // 处理 API 请求结果
               let botResponse = '';
+              const llmResponse = data.response;
 
-              if (data.thoughts) {
-                // 添加思考过程
-                botResponse = data.thoughts + '\n\n';
+              if (llmResponse.thoughts) {
+                // 添加主要思考过程
+                botResponse = llmResponse.thoughts + '\n\n';
               }
 
-              if (data.tables) {
-                // 如果是表名列表，直接显示
-                botResponse += data.tables.join('\n');
+              if (llmResponse.tables) {
+                // 如果是表名列表，显示为列表形式
+                botResponse += llmResponse.tables.join('\n');
+              } else if (llmResponse.subtasks) {
+                // 处理子任务结果
+                for (const subtask of llmResponse.subtasks) {
+                  if (subtask.thought) {
+                    botResponse += `${subtask.thought}\n`;
+                  }
+                  if (subtask.summary) {
+                    botResponse += `${subtask.summary}\n`;
+                  }
+                  botResponse += '\n';
+                }
+              } else if (llmResponse.result_summary) {
+                // 显示结果摘要
+                botResponse += llmResponse.result_summary;
               } else if (data.results && data.results.length > 0) {
-                // 格式化 API 请求结果
+                // 如果没有摘要，显示格式化的结果
                 botResponse += formatResults(data.results);
-              } else {
-                botResponse = '我无法处理这个请求，请尝试其他问题。';
               }
 
-              addMessage(botResponse, 'bot');
+              addMessage(botResponse.trim(), 'bot');
             } else {
               addMessage(`处理请求时出错: ${data.error}`, 'bot');
             }
