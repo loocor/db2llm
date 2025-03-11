@@ -1,6 +1,7 @@
-import { Hono } from 'hono'
+import type { Hono } from 'hono'
 import { getDataSource } from '../db/connection'
-import { TableMetadata, getAllTablesMetadata } from '../db/metadata'
+import type { TableMetadata } from '../db/metadata'
+import { getAllTablesMetadata } from '../db/metadata'
 
 // 存储当前的表元数据
 let currentTables: TableMetadata[] | null = null
@@ -146,7 +147,7 @@ export function createDynamicRouteMiddleware() {
           })
         }
 
-        case 'POST':
+        case 'POST': {
           if (id) {
             console.log('错误: 创建记录时不需要指定 ID')
             console.log('=== 动态路由请求结束 ===\n')
@@ -185,12 +186,13 @@ export function createDynamicRouteMiddleware() {
             {
               success: true,
               message: '记录创建成功',
-              id: result.lastID,
+              id: result[0].lastID,
             },
             201,
           )
+        }
 
-        case 'PUT':
+        case 'PUT': {
           if (!id) {
             console.log('错误: 更新记录时需要指定 ID')
             console.log('=== 动态路由请求结束 ===\n')
@@ -225,7 +227,7 @@ export function createDynamicRouteMiddleware() {
           result = await dataSource.query(updateQuery, updateValues)
           console.log('更新结果:', result)
 
-          if (result.changes === 0) {
+          if (result[0].changes === 0) {
             console.log('错误: 记录不存在或未更改')
             console.log('=== 动态路由请求结束 ===\n')
             return c.json({ success: false, error: '记录不存在或未更改' }, 404)
@@ -236,8 +238,9 @@ export function createDynamicRouteMiddleware() {
             success: true,
             message: '记录更新成功',
           })
+        }
 
-        case 'DELETE':
+        case 'DELETE': {
           if (!id) {
             console.log('错误: 删除记录时需要指定 ID')
             console.log('=== 动态路由请求结束 ===\n')
@@ -253,7 +256,7 @@ export function createDynamicRouteMiddleware() {
           result = await dataSource.query(deleteQuery, [id])
           console.log('删除结果:', result)
 
-          if (result.changes === 0) {
+          if (result[0].changes === 0) {
             console.log('错误: 记录不存在')
             console.log('=== 动态路由请求结束 ===\n')
             return c.json({ success: false, error: '记录不存在' }, 404)
@@ -264,6 +267,7 @@ export function createDynamicRouteMiddleware() {
             success: true,
             message: '记录删除成功',
           })
+        }
 
         default:
           console.log('错误: 不支持的请求方法')

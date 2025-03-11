@@ -1,7 +1,7 @@
 {
   "name": "db2llm",
   "version": "0.1.0",
-  "description": "将 SQLite 数据库的 meta 信息与 RESTful API 和 LLM 结合的最小化原型",
+  "description": "A minimal prototype combining the database with a RESTful API and LLM",
   "main": "src/index.ts",
   "type": "module",
   "scripts": {
